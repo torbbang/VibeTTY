@@ -444,7 +444,7 @@ export class SessionManager {
      * Get the connection associated with a terminal
      */
     getConnectionForTerminal(terminal: vscode.Terminal): UnifiedConnection | undefined {
-        for (const [_id, session] of this.activeSessions) {
+        for (const session of this.activeSessions.values()) {
             if (session.terminal === terminal) {
                 return session.connection;
             }
@@ -457,7 +457,7 @@ export class SessionManager {
      */
     async updateDeviceType(terminalName: string, deviceType: string): Promise<boolean> {
         // Find the session
-        for (const [_id, session] of this.activeSessions) {
+        for (const session of this.activeSessions.values()) {
             if (session.terminal.name.includes(terminalName)) {
                 const connection = session.connection;
 
@@ -531,7 +531,7 @@ export class SessionManager {
             try {
                 // Close the PTY process cleanly
                 session.pty.close();
-            } catch (error) {
+            } catch {
                 // Ignore errors during cleanup
             }
         }

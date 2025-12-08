@@ -23,7 +23,7 @@ export class HostSettingsPanel {
             (message) => {
                 switch (message.command) {
                     case 'save':
-                        this.saveHostSettings(message.data);
+                        void this.saveHostSettings(message.data);
                         break;
                     case 'cancel':
                         this.panel.dispose();
@@ -455,7 +455,7 @@ export class HostSettingsPanel {
     }
 
     private getSshHtmlFields(): string {
-        const host = this.host as any; // Cast to any for SSH specific properties
+        const host = this.host;
         const proxyJumpOptions = this.allHosts
             .filter(h => h.name !== host.name)
             .map(h => `<option value="${h.name}" ${host.proxyJump === h.name ? 'selected' : ''}>${h.name}${h.hostname ? ` (${h.hostname})` : ''}</option>`)
@@ -532,7 +532,7 @@ export class HostSettingsPanel {
     }
 
     private getDeviceTypeOptions(): string {
-        const host = this.host as any;
+        const host = this.host;
         const options = [
             { value: '', label: '-- Auto-Detect (Not Recommended) --' },
             { value: 'cisco_ios', label: 'Cisco IOS' },
@@ -552,7 +552,7 @@ export class HostSettingsPanel {
 
 
     private getTelnetHtmlFields(): string {
-        const host = this.host as any; // Cast to any for Telnet specific properties
+        const host = this.host;
         return `
             <div class="form-group">
                 <label for="hostname">Hostname / IP Address</label>
@@ -569,7 +569,7 @@ export class HostSettingsPanel {
     }
 
     private getSerialHtmlFields(): string {
-        const host = this.host as any; // Cast to any for Serial specific properties
+        const host = this.host;
         return `
             <div class="form-group">
                 <label for="device">Device Path</label>

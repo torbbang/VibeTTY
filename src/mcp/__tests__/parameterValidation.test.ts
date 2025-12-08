@@ -35,7 +35,7 @@ describe('MCP Parameter Validation', () => {
     };
 
     // Simple validator function (mirrors validation logic)
-    function validateParams(toolName: string, params: any): string | null {
+    function validateParams(toolName: string, params: unknown): string | null {
         const schema = TOOL_PARAM_SCHEMAS[toolName];
         if (!schema) {
             return `Unknown tool: ${toolName}`;
@@ -46,14 +46,17 @@ describe('MCP Parameter Validation', () => {
             return 'Parameters must be an object';
         }
 
+        // Type guard: params is an object at this point
+        const paramsObj = params as Record<string, unknown>;
+
         // Check required parameters
         for (const [paramName, paramSchema] of Object.entries(schema)) {
-            if (paramSchema.required && !(paramName in params)) {
+            if (paramSchema.required && !(paramName in paramsObj)) {
                 return `Missing required parameter: ${paramName}`;
             }
 
-            if (paramName in params) {
-                const value = params[paramName];
+            if (paramName in paramsObj) {
+                const value = paramsObj[paramName];
                 const expectedType = paramSchema.type;
 
                 // Type checking

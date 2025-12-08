@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ensureTerminalScrollback();
 
     // Show first-run welcome if this is the first time
-    OnboardingManager.showFirstRunWelcome(context);
+    void OnboardingManager.showFirstRunWelcome(context);
 
     sessionManager = new SessionManager();
     sessionTreeProvider = new SessionTreeProvider(sessionManager);

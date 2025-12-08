@@ -581,7 +581,7 @@ export class MCPServer {
             return this.errorResponse(id, -32602, `Could not get PTY for terminal: ${terminalName}`);
         }
 
-        const patterns = (pty as any).vendor.paginationPromptPatterns;
+        const patterns = pty.vendor.paginationPromptPatterns;
         if (!patterns || patterns.length === 0) {
             const connection = this.sessionManager.getConnectionForTerminal(terminal);
             const currentDeviceType = connection?.device_type || 'generic';

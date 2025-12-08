@@ -3,6 +3,69 @@
  * This file provides mock implementations of VSCode APIs used by VibeTTY
  */
 
+// Type definitions for mock implementations
+interface QuickPickOptions {
+  placeHolder?: string;
+  canPickMany?: boolean;
+}
+
+interface InputBoxOptions {
+  prompt?: string;
+  value?: string;
+  password?: boolean;
+}
+
+interface OutputChannel {
+  appendLine: (message: string) => void;
+  append: (message: string) => void;
+  clear: () => void;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+}
+
+interface StatusBarItem {
+  text: string;
+  tooltip: string;
+  command: string;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+}
+
+interface TerminalOptions {
+  name?: string;
+  pty?: unknown;
+}
+
+interface Terminal {
+  name: string;
+  show: () => void;
+  hide: () => void;
+  dispose: () => void;
+  sendText: (text: string) => void;
+}
+
+interface TreeViewOptions {
+  treeDataProvider: unknown;
+  showCollapseAll?: boolean;
+}
+
+interface TreeView {
+  reveal: () => void;
+  dispose: () => void;
+}
+
+interface WorkspaceConfiguration {
+  get<T>(key: string, defaultValue?: T): T | undefined;
+  update(key: string, value: unknown): Promise<void>;
+  has(key: string): boolean;
+}
+
+interface Disposable {
+  dispose(): void;
+}
+
 export enum ExtensionMode {
   Production = 1,
   Development = 2,
@@ -36,10 +99,10 @@ export class Uri {
 }
 
 export class EventEmitter<T> {
-  private listeners: Array<(e: T) => any> = [];
+  private listeners: Array<(e: T) => void> = [];
 
   get event() {
-    return (listener: (e: T) => any) => {
+    return (listener: (e: T) => void) => {
       this.listeners.push(listener);
       return { dispose: () => {} };
     };
@@ -54,6 +117,7 @@ export class EventEmitter<T> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace window {
   export function showErrorMessage(_message: string, ..._items: string[]): Thenable<string | undefined> {
     return Promise.resolve(undefined);
@@ -67,15 +131,15 @@ export namespace window {
     return Promise.resolve(undefined);
   }
 
-  export function showQuickPick(items: string[], _options?: any): Thenable<string | undefined> {
+  export function showQuickPick(items: string[], _options?: QuickPickOptions): Thenable<string | undefined> {
     return Promise.resolve(items[0]);
   }
 
-  export function showInputBox(_options?: any): Thenable<string | undefined> {
+  export function showInputBox(_options?: InputBoxOptions): Thenable<string | undefined> {
     return Promise.resolve(undefined);
   }
 
-  export function createOutputChannel(_name: string): any {
+  export function createOutputChannel(_name: string): OutputChannel {
     return {
       appendLine: (_message: string) => {},
       append: (_message: string) => {},
@@ -86,7 +150,7 @@ export namespace window {
     };
   }
 
-  export function createStatusBarItem(_alignment?: any, _priority?: number): any {
+  export function createStatusBarItem(_alignment?: StatusBarAlignment, _priority?: number): StatusBarItem {
     return {
       text: '',
       tooltip: '',
@@ -97,7 +161,7 @@ export namespace window {
     };
   }
 
-  export function createTerminal(options: any): any {
+  export function createTerminal(options: TerminalOptions): Terminal {
     return {
       name: options.name || 'terminal',
       show: () => {},
@@ -107,7 +171,7 @@ export namespace window {
     };
   }
 
-  export function createTreeView(_viewId: string, _options: any): any {
+  export function createTreeView(_viewId: string, _options: TreeViewOptions): TreeView {
     return {
       reveal: () => {},
       dispose: () => {},
@@ -117,9 +181,10 @@ export namespace window {
   export const activeTextEditor = undefined;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace workspace {
-  export function getConfiguration(section?: string): any {
-    const config: any = {
+  export function getConfiguration(section?: string): WorkspaceConfiguration {
+    const config: Record<string, unknown> = {
       'vibetty.security.strictMode': false,
       'vibetty.logging.enabled': false,
       'vibetty.logging.directory': '~/.vibetty/logs',
@@ -130,11 +195,11 @@ export namespace workspace {
     };
 
     return {
-      get: (key: string, defaultValue?: any) => {
+      get: <T>(key: string, defaultValue?: T): T | undefined => {
         const fullKey = section ? `${section}.${key}` : key;
-        return config[fullKey] ?? defaultValue;
+        return (config[fullKey] as T) ?? defaultValue;
       },
-      update: async (key: string, value: any) => {
+      update: async (key: string, value: unknown) => {
         const fullKey = section ? `${section}.${key}` : key;
         config[fullKey] = value;
       },
@@ -146,18 +211,19 @@ export namespace workspace {
   }
 
   export const workspaceFolders = undefined;
-  export const onDidChangeConfiguration = new EventEmitter<any>().event;
+  export const onDidChangeConfiguration = new EventEmitter<unknown>().event;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace commands {
-  const registeredCommands = new Map<string, (...args: any[]) => any>();
+  const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
 
-  export function registerCommand(command: string, callback: (...args: any[]) => any): any {
+  export function registerCommand(command: string, callback: (...args: unknown[]) => unknown): Disposable {
     registeredCommands.set(command, callback);
     return { dispose: () => registeredCommands.delete(command) };
   }
 
-  export async function executeCommand(command: string, ...args: any[]): Promise<any> {
+  export async function executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
     const callback = registeredCommands.get(command);
     if (callback) {
       return callback(...args);
@@ -173,7 +239,7 @@ export class ThemeIcon {
 export class TreeItem {
   constructor(
     public label: string,
-    public collapsibleState?: any
+    public collapsibleState?: TreeItemCollapsibleState
   ) {}
 }
 
@@ -186,7 +252,7 @@ export enum TreeItemCollapsibleState {
 export class CancellationTokenSource {
   token = {
     isCancellationRequested: false,
-    onCancellationRequested: new EventEmitter<any>().event,
+    onCancellationRequested: new EventEmitter<void>().event,
   };
 
   cancel(): void {
@@ -207,6 +273,7 @@ export enum ConfigurationTarget {
   WorkspaceFolder = 3,
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace env {
   export const machineId = 'test-machine-id-1234567890';
   export const sessionId = 'test-session-id-0987654321';

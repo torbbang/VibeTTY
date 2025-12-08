@@ -40,7 +40,7 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
     private pendingLine = '';
 
     // Device detection
-    private vendor: Vendor;
+    public vendor: Vendor;
 
     // Sub-session detection state
     private _pendingSubSessionHost: string | null = null;
@@ -854,7 +854,7 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
             const content = fs.readFileSync(keywordFilePath, 'utf-8');
             const keywordSets = KeywordParser.parse(content);
             this.keywordHighlighter.setKeywordSets(keywordSets);
-        } catch (error) {
+        } catch {
             // Silently disable highlighting if file can't be loaded
             this.keywordHighlighter.setEnabled(false);
         }

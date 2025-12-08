@@ -138,7 +138,7 @@ export class VisualHighlighter {
      * Manually clear user-requested highlights (but keep password prompts)
      */
     clearUserHighlight(terminalName: string): void {
-        for (const [_pty, state] of this.blinkStates) {
+        for (const state of this.blinkStates.values()) {
             if (state.terminalName === terminalName) {
                 if (state.cleanupTimer) {
                     clearTimeout(state.cleanupTimer);

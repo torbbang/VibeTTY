@@ -160,7 +160,7 @@ export class IPCServer {
                         socket.write(JSON.stringify(errorResponse) + '\n');
                         continue;
                     }
-                    this.handleRequest(socket, line);
+                    void this.handleRequest(socket, line);
                 }
             }
         });

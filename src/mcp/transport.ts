@@ -28,7 +28,7 @@ export class StdioTransport {
 
         for (const line of lines) {
             if (line.trim()) {
-                this.handleLine(line);
+                void this.handleLine(line);
             }
         }
     }
@@ -41,7 +41,7 @@ export class StdioTransport {
             if (response !== null) {
                 this.send(response);
             }
-        } catch (err) {
+        } catch {
             const errorResponse = {
                 jsonrpc: '2.0',
                 id: null,

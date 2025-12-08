@@ -191,10 +191,10 @@ describe('SSH Validator', () => {
         });
 
         test('should handle null/undefined', () => {
-            expect(validatePortForward(null as any)).toContain('cannot be empty');
-            expect(validatePortForward(undefined as any)).toContain('cannot be empty');
-            expect(validateProxyJump(null as any)).toContain('cannot be empty');
-            expect(validateProxyJump(undefined as any)).toContain('cannot be empty');
+            expect(validatePortForward(null as unknown as string)).toContain('cannot be empty');
+            expect(validatePortForward(undefined as unknown as string)).toContain('cannot be empty');
+            expect(validateProxyJump(null as unknown as string)).toContain('cannot be empty');
+            expect(validateProxyJump(undefined as unknown as string)).toContain('cannot be empty');
         });
 
         test('should handle very long valid input', () => {
