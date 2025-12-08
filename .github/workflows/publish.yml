@@ -69,11 +69,3 @@ jobs:
       with:
         name: vibetty-${{ steps.get_version.outputs.version }}.vsix
         path: '*.vsix'
-
-    - name: Create Git tag
-      if: github.event_name == 'workflow_run'
-      run: |
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
-        git push origin "v${{ steps.get_version.outputs.version }}"
