@@ -1,0 +1,48 @@
+# Editor and test directories
+.vscode/**
+.vscode-test/**
+
+# Source files (compiled to out/)
+src/**
+**/tsconfig.json
+**/.eslintrc.json
+**/*.map
+**/*.ts
+
+# Exclude node_modules and package artifacts
+node_modules/**
+*.vsix
+
+# Development documentation
+.gitignore
+.yarnrc
+vsc-extension-quickstart.md
+CLAUDE.md
+GEMINI.md
+CONTRIBUTING.md
+docs/**
+mcp-config.example.json
+
+# Version control
+.git
+.gitignore
+.secrets
+
+# Test files (when added)
+**/__tests__/**
+**/*.test.ts
+**/*.spec.ts
+test/**
+coverage/**
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep necessary files:
+# - out/** (compiled JS)
+# - package.json
+# - README.md
+# - QUICKSTART.md
+# - LICENSE.txt
+# - resources/**

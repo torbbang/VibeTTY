@@ -1,0 +1,12 @@
+out/
+node_modules/
+.vscode-test/
+*.vsix
+CLAUDE.md
+
+# Secrets
+.secrets
+
+# OS-specific
+.DS_Store
+Thumbs.db
