@@ -26,10 +26,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '20.x'
         cache: 'npm'
@@ -65,7 +65,7 @@ jobs:
       run: npx vsce publish -p $VSCE_PAT
 
     - name: Upload VSIX as workflow artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vibetty-${{ steps.get_version.outputs.version }}.vsix
         path: '*.vsix'
