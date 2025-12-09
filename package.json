@@ -99,6 +99,11 @@
         "category": "VibeTTY"
       },
       {
+        "command": "vibetty.copyConnection",
+        "title": "Copy Connection",
+        "category": "VibeTTY"
+      },
+      {
         "command": "vibetty.addHost",
         "title": "Add New Connection",
         "icon": "$(add)",
@@ -257,6 +262,11 @@
           "default": 60,
           "description": "Sets the ServerAliveInterval option for SSH connections, preventing disconnects on idle. Value is in seconds. Set to 0 to disable."
         },
+        "vibetty.ssh.connectTimeout": {
+          "type": "number",
+          "default": 10,
+          "description": "Sets the ConnectTimeout option for SSH connections. SSH will fail quickly if the host is unreachable. Value is in seconds. Set to 0 to disable (use system default)."
+        },
         "vibetty.highlighting.enabled": {
           "type": "boolean",
           "default": true,
@@ -297,6 +307,11 @@
         },
         {
           "command": "vibetty.editHost",
+          "when": "view == vibetty-sessions && viewItem =~ /^(ssh|telnet|serial)Connection$/",
+          "group": "navigation"
+        },
+        {
+          "command": "vibetty.copyConnection",
           "when": "view == vibetty-sessions && viewItem =~ /^(ssh|telnet|serial)Connection$/",
           "group": "navigation"
         },

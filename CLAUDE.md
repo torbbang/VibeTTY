@@ -124,9 +124,11 @@ We use VSCode's Pseudoterminal API with Node.js `child_process` to:
 ### Session Management
 - **Connection Types**: SSH, Telnet, Serial
 - **Folder Organization**: Group connections with drag-and-drop
+- **Copy Connections**: Right-click to duplicate connection settings with a new name
 - **Multiple Sessions**: Concurrent sessions per connection
 - **ProxyJump Support**: Full bastion/jump host support
 - **Port Forwarding**: Local, remote, and dynamic (SOCKS)
+- **Smart Timeouts**: Fast failure for unreachable hosts (10s default) with separate authentication timeout (30s)
 - **Connection Notes**: Persistent device reference documentation for each connection
   - AI assistants automatically see notes when connecting to understand device state
   - AI assistants update notes via `update_connection_notes` MCP tool
@@ -139,6 +141,7 @@ We use VSCode's Pseudoterminal API with Node.js `child_process` to:
   - Displays colored disconnection banner instead of closing
   - Shows exit code, timestamp, and reason for disconnection
   - Yellow banner for normal exit (code 0), red for errors
+  - Error notification in bottom-right corner for failed connections
   - User can review output and manually close or reconnect
 - **Subsession Detection**: Automatically detects SSH/Telnet/Connect commands
   - Tracks visible command line (handles backspace, Ctrl+U, Ctrl+W, ANSI escapes)

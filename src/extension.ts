@@ -100,6 +100,48 @@ export function activate(context: vscode.ExtensionContext): void {
         }
     });
 
+    const copyConnectionCmd = vscode.commands.registerCommand('vibetty.copyConnection', async (treeItem) => {
+        // Extract the connection to copy
+        const sourceConnection = treeItem?.connection;
+        if (!sourceConnection) {
+            vscode.window.showErrorMessage('Could not load connection information');
+            return;
+        }
+
+        // Prompt for new connection name
+        const connectionName = await vscode.window.showInputBox({
+            prompt: `Enter name for copied connection (copying from '${sourceConnection.name}')`,
+            placeHolder: `${sourceConnection.name}-copy`,
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Connection name cannot be empty';
+                }
+                if (!/^[a-zA-Z0-9_.-]+$/.test(value)) {
+                    return 'Connection name can only contain letters, numbers, hyphens, underscores, and dots';
+                }
+                // Check if connection already exists
+                const existingConnections = sessionManager.getHosts();
+                if (existingConnections.some(c => c.name === value)) {
+                    return `Connection '${value}' already exists`;
+                }
+                return null;
+            }
+        });
+
+        if (!connectionName) {
+            return;
+        }
+
+        // Create a copy of the connection with the new name
+        const copiedConnection: UnifiedConnection = {
+            ...sourceConnection,
+            name: connectionName
+        };
+
+        // Open the host settings panel for the new connection
+        HostSettingsPanel.showNew(copiedConnection, sessionManager.getHosts(), sessionTreeProvider);
+    });
+
     const showHostSettingsForCmd = vscode.commands.registerCommand('vibetty.showHostSettingsFor', (hostName: string) => {
         const connection = sessionManager.getHosts().find(h => h.name === hostName);
         if (connection) {
@@ -653,6 +695,7 @@ export function activate(context: vscode.ExtensionContext): void {
         connectCmd,
         refreshCmd,
         editHostCmd,
+        copyConnectionCmd,
         showHostSettingsForCmd,
         addHostCmd,
         deleteHostCmd,

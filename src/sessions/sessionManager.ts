@@ -125,6 +125,9 @@ export class SessionManager {
         // ServerAliveInterval to prevent disconnects on idle
         this.addServerAliveInterval(args, connection as SSHConnection);
 
+        // ConnectTimeout to fail fast when host is unreachable
+        this.addConnectTimeout(args, connection as SSHConnection);
+
         // Target host
         const hostname = connection.hostname || connection.name;
         const target = connection.user ? `${connection.user}@${hostname}` : hostname;
@@ -211,6 +214,16 @@ export class SessionManager {
         }
     }
 
+    private addConnectTimeout(args: string[], connection: SSHConnection): void {
+        const config = vscode.workspace.getConfiguration('vibetty');
+        const defaultTimeout = config.get<number>('ssh.connectTimeout', 10);
+        const timeout = connection.connectTimeout ?? defaultTimeout;
+
+        if (timeout > 0) {
+            args.push('-o', `ConnectTimeout=${timeout}`);
+        }
+    }
+
     connect(hostName: string, autoShow: boolean = true): { terminal: vscode.Terminal; sessionId: string } | undefined {
         const connection = this.connections.find((c) => c.name === hostName);
         if (!connection) {
@@ -291,6 +304,22 @@ export class SessionManager {
             );
             // Bring terminal to focus when password is needed
             terminal.show(false);
+        });
+
+        // Handle connection failures
+        pty.on('exit', (code) => {
+            // Show notification for failed connections (non-zero exit codes)
+            if (code !== 0 && code !== null) {
+                const message = code === 255
+                    ? `❌ Connection to ${hostName} failed (SSH error)`
+                    : `❌ Connection to ${hostName} ended with error (exit code ${code})`;
+
+                vscode.window.showErrorMessage(message, 'Show Terminal').then(selection => {
+                    if (selection === 'Show Terminal') {
+                        terminal.show();
+                    }
+                });
+            }
         });
 
         // Handle automatic sub-session detection

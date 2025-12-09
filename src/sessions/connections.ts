@@ -17,6 +17,7 @@ export interface SSHConnection {
     folder?: string;
     device_type?: string;
     serverAliveInterval?: number;
+    connectTimeout?: number;
     notes?: string;
 }
 
@@ -62,6 +63,7 @@ export interface UnifiedConnection {
     remoteForward?: string[];
     dynamicForward?: string[];
     serverAliveInterval?: number;
+    connectTimeout?: number;
 }
 
 /**
