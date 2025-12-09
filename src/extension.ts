@@ -342,14 +342,29 @@ export function activate(context: vscode.ExtensionContext): void {
 </html>`;
     });
 
-    async function handleClientConfiguration(client: 'claude-code' | 'cline' | 'gemini') {
+    function getClientFromAction(action: string): 'claude-code' | 'cline' | 'gemini' | 'mistral-vibe' | undefined {
+        switch (action) {
+            case 'Configure Claude Code':
+                return 'claude-code';
+            case 'Configure Gemini':
+                return 'gemini';
+            case 'Configure Cline':
+                return 'cline';
+            case 'Configure Mistral Vibe CLI':
+                return 'mistral-vibe';
+            default:
+                return undefined;
+        }
+    }
+
+    async function handleClientConfiguration(client: 'claude-code' | 'cline' | 'gemini' | 'mistral-vibe') {
         const update = getConfigUpdateProposal(client);
-    
+
         if (update) {
             // Show diff in editor
             const oldUri = vscode.Uri.parse(`vibetty-config:old/${update.path}`);
             const newUri = vscode.Uri.parse(`vibetty-config:new/${update.path}`);
-    
+
             // Register content provider for the diff
             const provider = new (class implements vscode.TextDocumentContentProvider {
                 provideTextDocumentContent(uri: vscode.Uri): string {
@@ -360,26 +375,26 @@ export function activate(context: vscode.ExtensionContext): void {
                     }
                 }
             })();
-    
+
             const registration = vscode.workspace.registerTextDocumentContentProvider('vibetty-config', provider);
-    
+
             await vscode.commands.executeCommand(
                 'vscode.diff',
                 oldUri,
                 newUri,
                 `VibeTTY Config Change: ${update.client}`
             );
-    
+
             const approve = await vscode.window.showInformationMessage(
                 `Apply this change to ${update.path}?`,
                 'Apply',
                 'Cancel'
             );
-    
+
             // Close the diff editor
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
             registration.dispose();
-    
+
             if (approve === 'Apply') {
                 applyConfigUpdate(update);
                 vscode.window.showInformationMessage(
@@ -402,6 +417,9 @@ export function activate(context: vscode.ExtensionContext): void {
         if (status.gemini) {
             configuredClients.push('Gemini');
         }
+        if (status.mistralVibe) {
+            configuredClients.push('Mistral Vibe CLI');
+        }
 
         const infoMessage = configuredClients.length > 0
             ? `VibeTTY MCP configured for: ${configuredClients.join(', ')}`
@@ -411,6 +429,7 @@ export function activate(context: vscode.ExtensionContext): void {
             { label: 'Configure Claude Code' },
             { label: 'Configure Cline' },
             { label: 'Configure Gemini' },
+            { label: 'Configure Mistral Vibe CLI' },
             { label: 'Copy Config' }
         ];
 
@@ -431,16 +450,8 @@ export function activate(context: vscode.ExtensionContext): void {
             vscode.window.showInformationMessage(
                 'MCP config copied to clipboard. Add to your AI client config file.'
             );
-        } else if (action === 'Configure Claude Code' || action === 'Configure Cline' || action === 'Configure Gemini') {
-            let client: 'claude-code' | 'cline' | 'gemini' | undefined;
-            if (action === 'Configure Claude Code') {
-                client = 'claude-code';
-            } else if (action === 'Configure Gemini') {
-                client = 'gemini';
-            } else if (action === 'Configure Cline') {
-                client = 'cline';
-            }
-
+        } else {
+            const client = getClientFromAction(action);
             if (client) {
                 await handleClientConfiguration(client);
             }
@@ -453,6 +464,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 'Configure Claude Code',
                 'Configure Cline',
                 'Configure Gemini',
+                'Configure Mistral Vibe CLI',
                 'Copy Config'
             ],
             {
@@ -467,15 +479,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 'MCP config copied to clipboard. Add to your AI client config file.'
             );
         } else if (action) {
-            let client: 'claude-code' | 'cline' | 'gemini' | undefined;
-            if (action === 'Configure Claude Code') {
-                client = 'claude-code';
-            } else if (action === 'Configure Gemini') {
-                client = 'gemini';
-            } else if (action === 'Configure Cline') {
-                client = 'cline';
-            }
-
+            const client = getClientFromAction(action);
             if (client) {
                 await handleClientConfiguration(client);
             }

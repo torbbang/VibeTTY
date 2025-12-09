@@ -1,15 +1,18 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as toml from 'toml';
 
 interface MCPConfig {
     mcpServers?: Record<string, unknown>;
+    mcp_servers?: Record<string, unknown>;
 }
 
 export interface ConfigStatus {
     claudeCode: boolean;
     cline: boolean;
     gemini: boolean;
+    mistralVibe: boolean;
     configPaths: string[];
 }
 
@@ -18,6 +21,7 @@ export function checkMCPConfigs(): ConfigStatus {
         claudeCode: false,
         cline: false,
         gemini: false,
+        mistralVibe: false,
         configPaths: []
     };
 
@@ -89,13 +93,47 @@ export function checkMCPConfigs(): ConfigStatus {
         }
     }
 
+    // Check Mistral Vibe CLI config (TOML format)
+    const mistralVibeConfigPaths = [
+        path.join(os.homedir(), '.vibe', 'config.toml'),
+        path.join(os.homedir(), '.config', 'vibe', 'config.toml')
+    ];
+
+    for (const configPath of mistralVibeConfigPaths) {
+        if (fs.existsSync(configPath)) {
+            try {
+                const content = fs.readFileSync(configPath, 'utf-8');
+                const config = toml.parse(content);
+                if (config.mcp_servers && Array.isArray(config.mcp_servers)) {
+                    const vibettyServer = config.mcp_servers.find((server: any) => server.name === 'vibetty');
+                    if (vibettyServer) {
+                        status.mistralVibe = true;
+                        status.configPaths.push(configPath);
+                    }
+                }
+            } catch {
+                // Config exists but couldn't be parsed
+            }
+        }
+    }
+
     return status;
 }
 
-export function generateConfigSnippet(): string {
+export function generateConfigSnippet(client?: 'claude-code' | 'cline' | 'gemini' | 'mistral-vibe'): string {
     const cliPath = path.join(__dirname, '..', 'mcp', 'cli.js');
     const absolutePath = path.resolve(cliPath);
 
+    if (client === 'mistral-vibe') {
+        // Mistral Vibe CLI uses TOML format with [[mcp_servers]] array
+        return `[[mcp_servers]]
+name = "vibetty"
+transport = "stdio"
+command = "node"
+args = ["${absolutePath}"]`;
+    }
+
+    // Default configuration for other clients (Claude Code, Cline, Gemini)
     return JSON.stringify({
         mcpServers: {
             vibetty: {
@@ -157,7 +195,29 @@ function getClineConfigPath(): string {
     }
 }
 
-export function getConfigUpdateProposal(client: 'claude-code' | 'cline' | 'gemini'): ConfigUpdate | null {
+function getMistralVibeConfigPath(): string {
+    // Try to find existing Mistral Vibe CLI config, or use default location
+    const possiblePaths = [
+        path.join(os.homedir(), '.vibe', 'config.toml'),
+        path.join(os.homedir(), '.config', 'vibe', 'config.toml')
+    ];
+
+    // Return first existing path, or default to the most common location
+    for (const p of possiblePaths) {
+        if (fs.existsSync(p)) {
+            return p;
+        }
+    }
+
+    // Default to XDG config on Linux/macOS, home directory on Windows
+    if (process.platform === 'win32') {
+        return path.join(os.homedir(), '.vibe', 'config.toml');
+    } else {
+        return path.join(os.homedir(), '.config', 'vibe', 'config.toml');
+    }
+}
+
+export function getConfigUpdateProposal(client: 'claude-code' | 'cline' | 'gemini' | 'mistral-vibe'): ConfigUpdate | null {
     interface VibeTTYConfig {
         type?: string;
         command: string;
@@ -169,6 +229,10 @@ export function getConfigUpdateProposal(client: 'claude-code' | 'cline' | 'gemin
             alwaysAllow?: string[];
             alwaysAsk?: string[];
         };
+        permissions?: {
+            auto_approve?: string[];
+            require_approval?: string[];
+        };
     }
 
     const cliPath = path.join(__dirname, '..', 'mcp', 'cli.js');
@@ -178,7 +242,51 @@ export function getConfigUpdateProposal(client: 'claude-code' | 'cline' | 'gemin
     let configPath: string;
     let clientName: string;
 
-    if (client === 'cline') {
+    if (client === 'mistral-vibe') {
+        configPath = getMistralVibeConfigPath();
+        clientName = 'Mistral Vibe CLI';
+        // Mistral Vibe CLI uses TOML format, so we'll generate TOML snippet
+        const tomlSnippet = `[[mcp_servers]]
+name = "vibetty"
+transport = "stdio"
+command = "node"
+args = ["${absolutePath}"]`;
+
+        // For Mistral Vibe CLI, we'll return the TOML snippet directly
+        let currentContent = '';
+
+        if (fs.existsSync(configPath)) {
+            try {
+                currentContent = fs.readFileSync(configPath, 'utf-8');
+            } catch {
+                // Invalid TOML, start fresh
+                currentContent = '';
+            }
+        } else {
+            // Ensure directory exists for new config files
+            const dir = path.dirname(configPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+        }
+
+        // For TOML, we need to append the MCP server configuration
+        let newContent = currentContent;
+        if (!currentContent.includes('name = "vibetty"')) {
+            // Add the vibetty server configuration
+            if (newContent && !newContent.endsWith('\n')) {
+                newContent += '\n\n';
+            }
+            newContent += tomlSnippet;
+        }
+
+        return {
+            path: configPath,
+            client: clientName,
+            currentContent,
+            newContent
+        };
+    } else if (client === 'cline') {
         configPath = getClineConfigPath();
         clientName = 'Cline';
         // Cline uses a flat structure for tool permissions.
