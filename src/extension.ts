@@ -55,8 +55,34 @@ export function activate(context: vscode.ExtensionContext): void {
     });
 
     // Register commands
-    const connectCmd = vscode.commands.registerCommand('vibetty.connect', (host: string) => {
-        sessionManager.connect(host); // Returns { terminal, sessionId } but we don't need it for UI commands
+    const connectCmd = vscode.commands.registerCommand('vibetty.connect', (host: unknown) => {
+        // Extract hostname from argument - VSCode Remote can serialize arguments unexpectedly
+        let hostName: string | undefined;
+
+        if (typeof host === 'string') {
+            hostName = host;
+        } else if (host && typeof host === 'object') {
+            // VSCode Remote may wrap primitive arguments in objects during serialization
+            const obj = host as Record<string, unknown>;
+
+            // Try common property names
+            if ('name' in obj && typeof obj.name === 'string') {
+                hostName = obj.name;
+            } else if (Object.keys(obj).length === 1) {
+                // If there's only one property, try using its value
+                const firstValue = Object.values(obj)[0];
+                if (typeof firstValue === 'string') {
+                    hostName = firstValue;
+                }
+            }
+        }
+
+        if (!hostName) {
+            vscode.window.showErrorMessage(`Invalid connection parameter: ${String(host)}`);
+            return;
+        }
+
+        sessionManager.connect(hostName); // Returns { terminal, sessionId } but we don't need it for UI commands
     });
 
     const refreshCmd = vscode.commands.registerCommand('vibetty.refresh', () => {
