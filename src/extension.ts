@@ -378,7 +378,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('vibetty-config', provider);
 
-            await vscode.commands.executeCommand(
+            // Open the diff - don't await as it returns immediately after opening
+            vscode.commands.executeCommand(
                 'vscode.diff',
                 oldUri,
                 newUri,

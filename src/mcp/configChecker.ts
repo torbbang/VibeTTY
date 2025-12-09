@@ -125,12 +125,47 @@ export function generateConfigSnippet(client?: 'claude-code' | 'cline' | 'gemini
     const absolutePath = path.resolve(cliPath);
 
     if (client === 'mistral-vibe') {
-        // Mistral Vibe CLI uses TOML format with [[mcp_servers]] array
+        // Mistral Vibe CLI uses TOML format with tool permissions
         return `[[mcp_servers]]
 name = "vibetty"
 transport = "stdio"
 command = "node"
-args = ["${absolutePath}"]`;
+args = ["${absolutePath}"]
+
+# Auto-approve read-only VibeTTY tools
+[tools.vibetty_list_connections]
+permission = "always"
+
+[tools.vibetty_get_connection]
+permission = "always"
+
+[tools.vibetty_show_terminal]
+permission = "always"
+
+[tools.vibetty_read_output]
+permission = "always"
+
+[tools.vibetty_auto_paginate]
+permission = "always"
+
+[tools.vibetty_set_device_type]
+permission = "always"
+
+# Ask for approval on write operations
+[tools.vibetty_connect_host]
+permission = "ask"
+
+[tools.vibetty_send_to_terminal]
+permission = "ask"
+
+[tools.vibetty_update_connection_notes]
+permission = "ask"
+
+[tools.vibetty_add_connection]
+permission = "ask"
+
+[tools.vibetty_edit_connection]
+permission = "ask"`;
     }
 
     // Default configuration for other clients (Claude Code, Cline, Gemini)
@@ -245,22 +280,61 @@ export function getConfigUpdateProposal(client: 'claude-code' | 'cline' | 'gemin
     if (client === 'mistral-vibe') {
         configPath = getMistralVibeConfigPath();
         clientName = 'Mistral Vibe CLI';
-        // Mistral Vibe CLI uses TOML format, so we'll generate TOML snippet
+        // Mistral Vibe CLI uses TOML format with tool permissions
+        // MCP tools are prefixed with server name: vibetty_{tool_name}
         const tomlSnippet = `[[mcp_servers]]
 name = "vibetty"
 transport = "stdio"
 command = "node"
-args = ["${absolutePath}"]`;
+args = ["${absolutePath}"]
+
+# Auto-approve read-only VibeTTY tools
+[tools.vibetty_list_connections]
+permission = "always"
+
+[tools.vibetty_get_connection]
+permission = "always"
+
+[tools.vibetty_show_terminal]
+permission = "always"
+
+[tools.vibetty_read_output]
+permission = "always"
+
+[tools.vibetty_auto_paginate]
+permission = "always"
+
+[tools.vibetty_set_device_type]
+permission = "always"
+
+# Ask for approval on write operations
+[tools.vibetty_connect_host]
+permission = "ask"
+
+[tools.vibetty_send_to_terminal]
+permission = "ask"
+
+[tools.vibetty_update_connection_notes]
+permission = "ask"
+
+[tools.vibetty_add_connection]
+permission = "ask"
+
+[tools.vibetty_edit_connection]
+permission = "ask"`;
 
         // For Mistral Vibe CLI, we'll return the TOML snippet directly
-        let currentContent = '';
+        // Default to a comment to avoid empty diff content
+        let currentContent = '# Mistral Vibe CLI configuration\n';
 
         if (fs.existsSync(configPath)) {
             try {
-                currentContent = fs.readFileSync(configPath, 'utf-8');
+                const fileContent = fs.readFileSync(configPath, 'utf-8');
+                if (fileContent.trim()) {
+                    currentContent = fileContent;
+                }
             } catch {
-                // Invalid TOML, start fresh
-                currentContent = '';
+                // Invalid TOML, use default
             }
         } else {
             // Ensure directory exists for new config files
