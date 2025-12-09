@@ -137,7 +137,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     {
         name: 'set_device_type',
-        description: 'Manually set the device type for a terminal session. Use this if auto-detection fails or to override detected type. Persists the device type in settings for future connections.',
+        description: 'Override device type for an ACTIVE terminal session with immediate effect. Also persists to connection settings if found. Use this when auto-detection got it wrong for a currently running session. For configuration-only changes (no active session), use edit_connection instead.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -158,6 +158,209 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
                 }
             },
             required: ['terminal_name', 'device_type']
+        }
+    },
+    {
+        name: 'add_connection',
+        description: 'Add a new SSH/Telnet/Serial connection to VibeTTY settings. The connection will be saved and available for future use. Supports all connection properties including SSH port forwarding, proxy jump, and device-specific settings.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                name: {
+                    type: 'string',
+                    description: 'Unique name for this connection (required)'
+                },
+                type: {
+                    type: 'string',
+                    description: 'Connection type (required)',
+                    enum: ['ssh', 'telnet', 'serial']
+                },
+                hostname: {
+                    type: 'string',
+                    description: 'Hostname or IP address (required for SSH and Telnet)'
+                },
+                port: {
+                    type: 'number',
+                    description: 'Port number (optional, defaults: SSH=22, Telnet=23). Must be 1-65535.'
+                },
+                user: {
+                    type: 'string',
+                    description: 'Username for SSH connections (optional)'
+                },
+                device: {
+                    type: 'string',
+                    description: 'Device path for serial connections (required for serial, e.g., /dev/ttyUSB0)'
+                },
+                baud: {
+                    type: 'number',
+                    description: 'Baud rate for serial connections (optional, default: 9600). Common values: 9600, 19200, 38400, 57600, 115200.'
+                },
+                folder: {
+                    type: 'string',
+                    description: 'Folder/group name for organizing connections in the sidebar (optional)'
+                },
+                device_type: {
+                    type: 'string',
+                    description: 'Device type for vendor-specific features (optional, default: generic)',
+                    enum: ['cisco_ios', 'cisco_ios-xe', 'juniper_junos', 'fortinet_fortios', 'generic']
+                },
+                notes: {
+                    type: 'string',
+                    description: 'Connection notes/documentation (optional, max 10KB). Should contain static config info only.'
+                },
+                enableLogging: {
+                    type: 'boolean',
+                    description: 'Enable session logging for this connection (optional, overrides global setting)'
+                },
+                proxyJump: {
+                    type: 'string',
+                    description: 'SSH ProxyJump/bastion host (optional, SSH only, e.g., "user@jumphost")'
+                },
+                proxyCommand: {
+                    type: 'string',
+                    description: 'SSH ProxyCommand (optional, SSH only, e.g., "ssh -W %h:%p jumphost")'
+                },
+                identityFile: {
+                    type: 'string',
+                    description: 'SSH private key file path (optional, SSH only, e.g., "~/.ssh/id_rsa")'
+                },
+                localForward: {
+                    type: 'array',
+                    description: 'SSH local port forwarding rules (optional, SSH only, e.g., ["8080:localhost:80"])',
+                    items: {
+                        type: 'string'
+                    }
+                },
+                remoteForward: {
+                    type: 'array',
+                    description: 'SSH remote port forwarding rules (optional, SSH only, e.g., ["8080:localhost:80"])',
+                    items: {
+                        type: 'string'
+                    }
+                },
+                dynamicForward: {
+                    type: 'array',
+                    description: 'SSH dynamic port forwarding (SOCKS proxy) ports (optional, SSH only, e.g., ["1080"])',
+                    items: {
+                        type: 'string'
+                    }
+                },
+                serverAliveInterval: {
+                    type: 'number',
+                    description: 'SSH ServerAliveInterval in seconds (optional, SSH only, keeps connection alive)'
+                },
+                connectTimeout: {
+                    type: 'number',
+                    description: 'SSH connection timeout in seconds (optional, SSH only, default: 10)'
+                }
+            },
+            required: ['name', 'type']
+        }
+    },
+    {
+        name: 'get_connection',
+        description: 'Get detailed information about a specific connection. Returns all configured properties in a readable format.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                name: {
+                    type: 'string',
+                    description: 'Name of the connection to retrieve (required)'
+                }
+            },
+            required: ['name']
+        }
+    },
+    {
+        name: 'edit_connection',
+        description: 'Edit an existing SSH/Telnet/Serial connection in VibeTTY settings. Only provided properties will be updated; omitted properties remain unchanged. Cannot change connection type. Changes take effect for new sessions only.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                name: {
+                    type: 'string',
+                    description: 'Name of the connection to edit (required)'
+                },
+                hostname: {
+                    type: 'string',
+                    description: 'Hostname or IP address (for SSH and Telnet)'
+                },
+                port: {
+                    type: 'number',
+                    description: 'Port number (must be 1-65535)'
+                },
+                user: {
+                    type: 'string',
+                    description: 'Username (SSH only)'
+                },
+                device: {
+                    type: 'string',
+                    description: 'Serial device path (Serial only)'
+                },
+                baud: {
+                    type: 'number',
+                    description: 'Baud rate (Serial only)'
+                },
+                folder: {
+                    type: 'string',
+                    description: 'Folder/group name for organizing connections'
+                },
+                device_type: {
+                    type: 'string',
+                    description: 'Device type for vendor-specific features',
+                    enum: ['cisco_ios', 'cisco_ios-xe', 'juniper_junos', 'fortinet_fortios', 'generic']
+                },
+                notes: {
+                    type: 'string',
+                    description: 'Connection notes/documentation (max 10KB)'
+                },
+                enableLogging: {
+                    type: 'boolean',
+                    description: 'Enable session logging for this connection'
+                },
+                proxyJump: {
+                    type: 'string',
+                    description: 'SSH ProxyJump/bastion host (SSH only)'
+                },
+                proxyCommand: {
+                    type: 'string',
+                    description: 'SSH ProxyCommand (SSH only)'
+                },
+                identityFile: {
+                    type: 'string',
+                    description: 'SSH private key file path (SSH only)'
+                },
+                localForward: {
+                    type: 'array',
+                    description: 'SSH local port forwarding rules (SSH only)',
+                    items: {
+                        type: 'string'
+                    }
+                },
+                remoteForward: {
+                    type: 'array',
+                    description: 'SSH remote port forwarding rules (SSH only)',
+                    items: {
+                        type: 'string'
+                    }
+                },
+                dynamicForward: {
+                    type: 'array',
+                    description: 'SSH dynamic port forwarding (SOCKS proxy) ports (SSH only)',
+                    items: {
+                        type: 'string'
+                    }
+                },
+                serverAliveInterval: {
+                    type: 'number',
+                    description: 'SSH ServerAliveInterval in seconds (SSH only)'
+                },
+                connectTimeout: {
+                    type: 'number',
+                    description: 'SSH connection timeout in seconds (SSH only)'
+                }
+            },
+            required: ['name']
         }
     }
 ];

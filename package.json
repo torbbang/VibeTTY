@@ -2,7 +2,7 @@
   "name": "vibetty",
   "displayName": "VibeTTY",
   "description": "Bring VibeOps workflows to network and systems administration - AI-assisted SSH/Telnet/Serial management",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "torbjorn-dev",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -117,11 +117,6 @@
       {
         "command": "vibetty.viewNotes",
         "title": "View Notes",
-        "category": "VibeTTY"
-      },
-      {
-        "command": "vibetty.openChat",
-        "title": "Chat",
         "category": "VibeTTY"
       },
       {
@@ -291,12 +286,6 @@
           "when": "view == vibetty-sessions",
           "group": "navigation@1",
           "icon": "$(shield)"
-        },
-        {
-          "command": "vibetty.openChat",
-          "when": "view == vibetty-sessions",
-          "group": "navigation@2",
-          "icon": "$(comment-discussion)"
         }
       ],
       "view/item/context": [

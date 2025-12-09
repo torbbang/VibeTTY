@@ -31,8 +31,8 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionManager = new SessionManager();
     sessionTreeProvider = new SessionTreeProvider(sessionManager);
 
-    // Start MCP server
-    mcpServer = new MCPServer(sessionManager);
+    // Start MCP server with tree provider for refresh capability
+    mcpServer = new MCPServer(sessionManager, sessionTreeProvider);
     ipcServer = new IPCServer(mcpServer);
 
     ipcServer.start()
@@ -482,56 +482,6 @@ export function activate(context: vscode.ExtensionContext): void {
         }
     });
 
-    const openChatCmd = vscode.commands.registerCommand('vibetty.openChat', async () => {
-        const status = checkMCPConfigs();
-        const configuredClients = [];
-
-        if (status.claudeCode) configuredClients.push({ label: 'Claude Code', command: 'claude' });
-        if (status.cline) configuredClients.push({ label: 'Cline', command: 'cline' });
-        if (status.gemini) configuredClients.push({ label: 'Gemini', command: 'gemini' });
-        // Note: Claude Desktop is not a CLI tool, so it's excluded.
-
-        if (configuredClients.length === 0) {
-            const action = await vscode.window.showErrorMessage(
-                'No command-line MCP client configured. Please configure a client to use chat.',
-                'Configure Now'
-            );
-            if (action === 'Configure Now') {
-                vscode.commands.executeCommand('vibetty.checkConfig');
-            }
-            return;
-        }
-
-        let selectedClient: { label: string; command: string; } | undefined;
-
-        if (configuredClients.length === 1) {
-            selectedClient = configuredClients[0];
-        } else {
-            selectedClient = await vscode.window.showQuickPick(configuredClients, {
-                title: 'Select a client to launch in the terminal'
-            });
-        }
-
-        if (selectedClient) {
-            let cwd: string;
-            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-                cwd = vscode.workspace.workspaceFolders[0].uri.fsPath;
-            } else {
-                cwd = path.join(os.homedir(), '.vibetty');
-                if (!fs.existsSync(cwd)) {
-                    fs.mkdirSync(cwd, { recursive: true });
-                }
-            }
-
-            const terminal = vscode.window.createTerminal({
-                name: `VibeTTY Chat: ${selectedClient.label}`,
-                shellPath: selectedClient.command,
-                cwd,
-                location: vscode.TerminalLocation.Editor
-            });
-            terminal.show();
-        }
-    });
 
     // Strict mode commands
     const enableStrictModeCmd = vscode.commands.registerCommand('vibetty.enableStrictMode', async () => {
@@ -702,7 +652,6 @@ export function activate(context: vscode.ExtensionContext): void {
         viewNotesCmd,
         checkConfigCmd,
         configureMcpCmd,
-        openChatCmd,
         enableStrictModeCmd,
         disableStrictModeCmd,
         strictModeStatusCmd,

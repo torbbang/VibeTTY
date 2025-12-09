@@ -210,6 +210,21 @@ We use VSCode's Pseudoterminal API with Node.js `child_process` to:
 
 ### MCP Tools
 - `list_connections` - List configured connections with status, subsessions, device context, and notes
+- `get_connection` - Get detailed information about a specific connection
+  - **Readable format**: Returns all configured properties in human-readable format
+  - **Complete details**: Shows all connection settings including SSH-specific properties
+  - **Includes notes**: Displays connection notes if configured
+- `add_connection` - Add a new SSH/Telnet/Serial connection to VibeTTY settings
+  - **Supports all connection properties**: hostname, port, user, device, baud, folder, device_type, notes, enableLogging
+  - **SSH-specific properties**: proxyJump, proxyCommand, identityFile, localForward, remoteForward, dynamicForward, serverAliveInterval, connectTimeout
+  - **Validation**: Checks for duplicate names, validates required fields per connection type, enforces port/baud ranges
+  - **Persistence**: Connection is saved to VSCode settings and available immediately
+- `edit_connection` - Edit an existing SSH/Telnet/Serial connection
+  - **Partial updates**: Only provided properties are updated; omitted properties remain unchanged
+  - **Cannot change type**: Connection type (ssh/telnet/serial) cannot be changed after creation
+  - **Validation**: Validates updated connection and checks for type compatibility
+  - **Changes tracking**: Reports which properties were modified
+  - **Note**: Changes take effect for new sessions only; existing sessions continue with previous configuration
 - `connect_host` - Open new connection(s) - accepts array of host names (automatically shows notes on connection)
   - **Multiple connections**: Connects sequentially, waiting for each to authenticate before starting the next
   - Prevents authentication prompt conflicts by monitoring connection establishment (30s timeout per host)
@@ -225,8 +240,12 @@ We use VSCode's Pseudoterminal API with Node.js `child_process` to:
 - `update_connection_notes` - Update notes/context for a connection (persisted across sessions)
 - `auto_paginate` - Enable auto-pagination for the next command (automatically sends space through --More-- prompts)
   - **Terminal identifier**: PREFER session_id from `connect_host` or `list_connections`
-- `set_device_type` - Manually set device type for a terminal session (persists in settings)
+- `set_device_type` - Override device type for an active terminal session
+  - **Runtime correction**: Immediately changes device type for currently running session
+  - **Also persists**: Updates connection settings if connection found
+  - **Use case**: "Auto-detection got it wrong, fix it now for this active session"
   - **Terminal identifier**: PREFER session_id from `connect_host` or `list_connections`
+  - **Note**: For configuration-only changes (no active session), use `edit_connection` instead
 
 ### MCP Tool Best Practices
 - **Use session IDs**: Always use the session_id returned by `connect_host` when interacting with terminals

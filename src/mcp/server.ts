@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { SessionManager } from '../sessions/sessionManager';
 import { ApprovalGate } from '../security/approvalGate';
 import { getSupportedDeviceTypes } from '../device-types';
-import { updateConnectionNotes, getConnectionNotes } from '../sessions/connections';
+import { updateConnectionNotes, getConnectionNotes, saveConnection, validateConnection, getConnectionsFromSettings, type Connection } from '../sessions/connections';
 import { TOOL_DEFINITIONS } from './toolDefinitions';
 
 // MCP Protocol Types
@@ -51,6 +51,50 @@ const TOOL_PARAM_SCHEMAS: Record<string, Record<string, { type: string; required
     update_connection_notes: {
         connection_name: { type: 'string', required: true },
         notes: { type: 'string', required: true }
+    },
+    get_connection: {
+        name: { type: 'string', required: true }
+    },
+    add_connection: {
+        name: { type: 'string', required: true },
+        type: { type: 'string', required: true },
+        hostname: { type: 'string' },
+        port: { type: 'number' },
+        user: { type: 'string' },
+        device: { type: 'string' },
+        baud: { type: 'number' },
+        folder: { type: 'string' },
+        device_type: { type: 'string' },
+        notes: { type: 'string' },
+        enableLogging: { type: 'boolean' },
+        proxyJump: { type: 'string' },
+        proxyCommand: { type: 'string' },
+        identityFile: { type: 'string' },
+        localForward: { type: 'string[]' },
+        remoteForward: { type: 'string[]' },
+        dynamicForward: { type: 'string[]' },
+        serverAliveInterval: { type: 'number' },
+        connectTimeout: { type: 'number' }
+    },
+    edit_connection: {
+        name: { type: 'string', required: true },
+        hostname: { type: 'string' },
+        port: { type: 'number' },
+        user: { type: 'string' },
+        device: { type: 'string' },
+        baud: { type: 'number' },
+        folder: { type: 'string' },
+        device_type: { type: 'string' },
+        notes: { type: 'string' },
+        enableLogging: { type: 'boolean' },
+        proxyJump: { type: 'string' },
+        proxyCommand: { type: 'string' },
+        identityFile: { type: 'string' },
+        localForward: { type: 'string[]' },
+        remoteForward: { type: 'string[]' },
+        dynamicForward: { type: 'string[]' },
+        serverAliveInterval: { type: 'number' },
+        connectTimeout: { type: 'number' }
     }
 };
 
@@ -58,9 +102,11 @@ export class MCPServer {
     private sessionManager: SessionManager;
     private approvalGate = ApprovalGate.getInstance();
     private supportedDeviceTypes: string[];
+    private treeProvider?: { refresh: () => void };
 
-    constructor(sessionManager: SessionManager) {
+    constructor(sessionManager: SessionManager, treeProvider?: { refresh: () => void }) {
         this.sessionManager = sessionManager;
+        this.treeProvider = treeProvider;
         this.supportedDeviceTypes = getSupportedDeviceTypes();
     }
 
@@ -221,6 +267,14 @@ export class MCPServer {
                     args.notes as string
                 );
 
+            case 'get_connection':
+                return this.toolGetConnection(request.id, args.name as string);
+
+            case 'add_connection':
+                return await this.toolAddConnection(request.id, args);
+
+            case 'edit_connection':
+                return await this.toolEditConnection(request.id, args);
 
             default:
                 return this.errorResponse(request.id, -32602, `Unknown tool: ${toolName}`);
@@ -794,6 +848,349 @@ export class MCPServer {
                 id,
                 -32603,
                 `Failed to update notes for "${connectionName}": ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    private toolGetConnection(
+        id: number | string,
+        connectionName: string
+    ): MCPResponse {
+        const existingConnections = getConnectionsFromSettings();
+        const connection = existingConnections.find(c => c.name === connectionName);
+
+        if (!connection) {
+            return this.errorResponse(
+                id,
+                -32602,
+                `Connection "${connectionName}" not found.`
+            );
+        }
+
+        // Build detailed connection information in readable format
+        let details = `Connection: ${connection.name}\n`;
+        details += `Type: ${connection.type.toUpperCase()}\n`;
+        details += `\n`;
+
+        // Type-specific properties
+        if (connection.type === 'ssh') {
+            details += `SSH Configuration:\n`;
+            details += `  Hostname: ${connection.hostname || '(not set)'}\n`;
+            details += `  Port: ${connection.port || 22}\n`;
+            details += `  User: ${connection.user || '(not set)'}\n`;
+
+            if (connection.proxyJump) {
+                details += `  ProxyJump: ${connection.proxyJump}\n`;
+            }
+            if (connection.proxyCommand) {
+                details += `  ProxyCommand: ${connection.proxyCommand}\n`;
+            }
+            if (connection.identityFile) {
+                details += `  Identity File: ${connection.identityFile}\n`;
+            }
+            if (connection.localForward && connection.localForward.length > 0) {
+                details += `  Local Forward: ${connection.localForward.join(', ')}\n`;
+            }
+            if (connection.remoteForward && connection.remoteForward.length > 0) {
+                details += `  Remote Forward: ${connection.remoteForward.join(', ')}\n`;
+            }
+            if (connection.dynamicForward && connection.dynamicForward.length > 0) {
+                details += `  Dynamic Forward: ${connection.dynamicForward.join(', ')}\n`;
+            }
+            if (connection.serverAliveInterval) {
+                details += `  ServerAliveInterval: ${connection.serverAliveInterval}s\n`;
+            }
+            if (connection.connectTimeout) {
+                details += `  Connect Timeout: ${connection.connectTimeout}s\n`;
+            }
+        } else if (connection.type === 'telnet') {
+            details += `Telnet Configuration:\n`;
+            details += `  Hostname: ${connection.hostname}\n`;
+            details += `  Port: ${connection.port || 23}\n`;
+        } else if (connection.type === 'serial') {
+            details += `Serial Configuration:\n`;
+            details += `  Device: ${connection.device}\n`;
+            details += `  Baud Rate: ${connection.baud || 9600}\n`;
+        }
+
+        // Common properties
+        details += `\n`;
+        if (connection.folder) {
+            details += `Folder: ${connection.folder}\n`;
+        }
+        if (connection.device_type) {
+            details += `Device Type: ${connection.device_type}\n`;
+        }
+        if (connection.notes) {
+            details += `\nNotes:\n${connection.notes}\n`;
+        }
+
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                content: [
+                    {
+                        type: 'text',
+                        text: details
+                    }
+                ],
+                metadata: {
+                    connection: connection
+                }
+            }
+        };
+    }
+
+    private async toolAddConnection(
+        id: number | string,
+        args: Record<string, unknown>
+    ): Promise<MCPResponse> {
+        try {
+            // Extract and validate connection type
+            const type = args.type as string;
+            if (!type || !['ssh', 'telnet', 'serial'].includes(type)) {
+                return this.errorResponse(
+                    id,
+                    -32602,
+                    `Invalid connection type. Must be one of: ssh, telnet, serial`
+                );
+            }
+
+            // Check if connection with this name already exists
+            const existingConnections = getConnectionsFromSettings();
+            const existingConnection = existingConnections.find(c => c.name === args.name);
+            if (existingConnection) {
+                return this.errorResponse(
+                    id,
+                    -32602,
+                    `A connection named "${args.name}" already exists. Use a different name or delete the existing connection first.`
+                );
+            }
+
+            // Build connection object based on type
+            let connection: Connection;
+
+            if (type === 'ssh') {
+                connection = {
+                    name: args.name as string,
+                    type: 'ssh',
+                    hostname: args.hostname as string | undefined,
+                    port: args.port as number | undefined,
+                    user: args.user as string | undefined,
+                    folder: args.folder as string | undefined,
+                    device_type: args.device_type as string | undefined,
+                    notes: args.notes as string | undefined,
+                    proxyJump: args.proxyJump as string | undefined,
+                    proxyCommand: args.proxyCommand as string | undefined,
+                    identityFile: args.identityFile as string | undefined,
+                    localForward: args.localForward as string[] | undefined,
+                    remoteForward: args.remoteForward as string[] | undefined,
+                    dynamicForward: args.dynamicForward as string[] | undefined,
+                    serverAliveInterval: args.serverAliveInterval as number | undefined,
+                    connectTimeout: args.connectTimeout as number | undefined
+                };
+            } else if (type === 'telnet') {
+                connection = {
+                    name: args.name as string,
+                    type: 'telnet',
+                    hostname: args.hostname as string,
+                    port: args.port as number | undefined,
+                    folder: args.folder as string | undefined,
+                    device_type: args.device_type as string | undefined,
+                    notes: args.notes as string | undefined
+                };
+            } else {
+                // serial
+                connection = {
+                    name: args.name as string,
+                    type: 'serial',
+                    device: args.device as string,
+                    baud: args.baud as number | undefined,
+                    folder: args.folder as string | undefined,
+                    device_type: args.device_type as string | undefined,
+                    notes: args.notes as string | undefined
+                };
+            }
+
+            // Validate the connection
+            const validationError = validateConnection(connection);
+            if (validationError) {
+                return this.errorResponse(id, -32602, validationError);
+            }
+
+            // Save the connection
+            await saveConnection(connection);
+
+            // Refresh the sidebar tree to show the new connection
+            if (this.treeProvider) {
+                this.treeProvider.refresh();
+            }
+
+            // Build success response
+            let responseText = `Successfully added ${type.toUpperCase()} connection: "${connection.name}"`;
+
+            // Add connection details using type guards
+            if (connection.type === 'ssh') {
+                responseText += `\nHostname: ${connection.hostname}`;
+                if (connection.port) {
+                    responseText += `\nPort: ${connection.port}`;
+                }
+                if (connection.user) {
+                    responseText += `\nUser: ${connection.user}`;
+                }
+            } else if (connection.type === 'telnet') {
+                responseText += `\nHostname: ${connection.hostname}`;
+                if (connection.port) {
+                    responseText += `\nPort: ${connection.port}`;
+                }
+            } else if (connection.type === 'serial') {
+                responseText += `\nDevice: ${connection.device}`;
+                if (connection.baud) {
+                    responseText += `\nBaud rate: ${connection.baud}`;
+                }
+            }
+
+            if (connection.folder) {
+                responseText += `\nFolder: ${connection.folder}`;
+            }
+            if (connection.device_type) {
+                responseText += `\nDevice type: ${connection.device_type}`;
+            }
+
+            responseText += `\n\nThe connection has been saved to your VibeTTY settings and is now available for use. Use connect_host with name="${connection.name}" to connect.`;
+
+            return {
+                jsonrpc: '2.0',
+                id,
+                result: {
+                    content: [
+                        {
+                            type: 'text',
+                            text: responseText
+                        }
+                    ],
+                    metadata: {
+                        connection_name: connection.name,
+                        connection_type: connection.type
+                    }
+                }
+            };
+        } catch (error) {
+            return this.errorResponse(
+                id,
+                -32603,
+                `Failed to add connection: ${error instanceof Error ? error.message : String(error)}`
+            );
+        }
+    }
+
+    private async toolEditConnection(
+        id: number | string,
+        args: Record<string, unknown>
+    ): Promise<MCPResponse> {
+        try {
+            const connectionName = args.name as string;
+
+            // Find existing connection
+            const existingConnections = getConnectionsFromSettings();
+            const existingConnection = existingConnections.find(c => c.name === connectionName);
+
+            if (!existingConnection) {
+                return this.errorResponse(
+                    id,
+                    -32602,
+                    `Connection "${connectionName}" not found. Use add_connection to create a new connection.`
+                );
+            }
+
+            // Build updated connection by merging existing with provided changes
+            const updatedConnection: Connection = { ...existingConnection };
+
+            // Update only provided properties based on connection type
+            if (updatedConnection.type === 'ssh') {
+                if (args.hostname !== undefined) { updatedConnection.hostname = args.hostname as string; }
+                if (args.port !== undefined) { updatedConnection.port = args.port as number; }
+                if (args.user !== undefined) { updatedConnection.user = args.user as string; }
+                if (args.proxyJump !== undefined) { updatedConnection.proxyJump = args.proxyJump as string; }
+                if (args.proxyCommand !== undefined) { updatedConnection.proxyCommand = args.proxyCommand as string; }
+                if (args.identityFile !== undefined) { updatedConnection.identityFile = args.identityFile as string; }
+                if (args.localForward !== undefined) { updatedConnection.localForward = args.localForward as string[]; }
+                if (args.remoteForward !== undefined) { updatedConnection.remoteForward = args.remoteForward as string[]; }
+                if (args.dynamicForward !== undefined) { updatedConnection.dynamicForward = args.dynamicForward as string[]; }
+                if (args.serverAliveInterval !== undefined) { updatedConnection.serverAliveInterval = args.serverAliveInterval as number; }
+                if (args.connectTimeout !== undefined) { updatedConnection.connectTimeout = args.connectTimeout as number; }
+            } else if (updatedConnection.type === 'telnet') {
+                if (args.hostname !== undefined) { updatedConnection.hostname = args.hostname as string; }
+                if (args.port !== undefined) { updatedConnection.port = args.port as number; }
+            } else if (updatedConnection.type === 'serial') {
+                if (args.device !== undefined) { updatedConnection.device = args.device as string; }
+                if (args.baud !== undefined) { updatedConnection.baud = args.baud as number; }
+            }
+
+            // Common properties (all connection types)
+            if (args.folder !== undefined) { updatedConnection.folder = args.folder as string; }
+            if (args.device_type !== undefined) { updatedConnection.device_type = args.device_type as string; }
+            if (args.notes !== undefined) { updatedConnection.notes = args.notes as string; }
+
+            // Validate the updated connection
+            const validationError = validateConnection(updatedConnection);
+            if (validationError) {
+                return this.errorResponse(id, -32602, validationError);
+            }
+
+            // Save the connection (this will replace the existing one with the same name)
+            await saveConnection(updatedConnection);
+
+            // Refresh the sidebar tree to show changes
+            if (this.treeProvider) {
+                this.treeProvider.refresh();
+            }
+
+            // Build response showing what changed
+            const changedProperties: string[] = [];
+
+            for (const [key, value] of Object.entries(args)) {
+                if (key !== 'name' && value !== undefined) {
+                    const oldValue = (existingConnection as unknown as Record<string, unknown>)[key];
+                    if (JSON.stringify(oldValue) !== JSON.stringify(value)) {
+                        changedProperties.push(key);
+                    }
+                }
+            }
+
+            let responseText = `Successfully updated connection: "${connectionName}"`;
+
+            if (changedProperties.length > 0) {
+                responseText += `\n\nChanged properties: ${changedProperties.join(', ')}`;
+            } else {
+                responseText += `\n\nNo changes detected (all provided values match existing values).`;
+            }
+
+            responseText += `\n\nNote: Changes will take effect for new sessions only. Existing active sessions will continue using the previous configuration.`;
+
+            return {
+                jsonrpc: '2.0',
+                id,
+                result: {
+                    content: [
+                        {
+                            type: 'text',
+                            text: responseText
+                        }
+                    ],
+                    metadata: {
+                        connection_name: updatedConnection.name,
+                        connection_type: updatedConnection.type,
+                        changed_properties: changedProperties
+                    }
+                }
+            };
+        } catch (error) {
+            return this.errorResponse(
+                id,
+                -32603,
+                `Failed to edit connection: ${error instanceof Error ? error.message : String(error)}`
             );
         }
     }
