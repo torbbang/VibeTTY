@@ -6,11 +6,25 @@ import { EventEmitter } from 'events';
 
 // Use VSCode's bundled node-pty to avoid build/packaging issues
 // VSCode already ships with node-pty for its integrated terminal
-let nodePty: any;
+interface IPty {
+    onData(callback: (data: string) => void): void;
+    onExit(callback: (e: { exitCode: number; signal?: number }) => void): void;
+    write(data: string): void;
+    resize(cols: number, rows: number): void;
+    kill(): void;
+}
+
+interface NodePtyModule {
+    spawn(command: string, args: string[], options: unknown): IPty;
+}
+
+let nodePty: NodePtyModule;
 try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     nodePty = require(path.join(vscode.env.appRoot, 'node_modules.asar', 'node-pty'));
-} catch (e) {
+} catch {
     // Fallback for unpacked installations
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     nodePty = require(path.join(vscode.env.appRoot, 'node_modules', 'node-pty'));
 }
 import { PasswordFilter } from '../security/passwordFilter';
@@ -39,7 +53,7 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
 
     private writeEmitter = new vscode.EventEmitter<string>();
     private closeEmitter = new vscode.EventEmitter<number | void>();
-    private process?: any; // node-pty IPty interface
+    private process?: IPty;
     private outputBuffer = '';
     private lastReadPosition = 0;
     private dimensions?: vscode.TerminalDimensions;
@@ -180,7 +194,9 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
             }
 
             // Detect password prompts
-            this.detectPasswordPrompt(text);
+            void this.detectPasswordPrompt(text).catch((err) => {
+                outputChannel.error('Error detecting password prompt', err);
+            });
 
             // Detect sub-session status
             this._detectSubSessionStatus(text);
@@ -493,12 +509,14 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
 
         if (promptType && hasNoNewline) {
             // Set a timer to detect if this is truly a prompt waiting for input
-            this.promptDetectionTimer = setTimeout(async () => {
+            this.promptDetectionTimer = setTimeout(() => {
                 if (this.pendingLine && !this.pendingLine.includes('\n')) {
                     const lastLine = this.pendingLine.split('\r').pop() || '';
 
                     if (lastLine.trim().length > 0) {
-                        await this.handleAuthPrompt(lastLine.trim(), promptType!);
+                        void this.handleAuthPrompt(lastLine.trim(), promptType!).catch((err) => {
+                            outputChannel.error('Error handling auth prompt', err);
+                        });
                     }
                     this.pendingLine = '';
                 }

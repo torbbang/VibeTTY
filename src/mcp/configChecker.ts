@@ -3,6 +3,16 @@ import * as os from 'os';
 import * as path from 'path';
 import * as toml from 'toml';
 
+interface MCPServer {
+    name?: string;
+    [key: string]: unknown;
+}
+
+interface MistralVibeConfig {
+    mcp_servers?: MCPServer[];
+    [key: string]: unknown;
+}
+
 interface MCPConfig {
     mcpServers?: Record<string, unknown>;
     mcp_servers?: Record<string, unknown>;
@@ -103,9 +113,9 @@ export function checkMCPConfigs(): ConfigStatus {
         if (fs.existsSync(configPath)) {
             try {
                 const content = fs.readFileSync(configPath, 'utf-8');
-                const config = toml.parse(content);
+                const config = toml.parse(content) as MistralVibeConfig;
                 if (config.mcp_servers && Array.isArray(config.mcp_servers)) {
-                    const vibettyServer = config.mcp_servers.find((server: any) => server.name === 'vibetty');
+                    const vibettyServer = config.mcp_servers.find((server) => server.name === 'vibetty');
                     if (vibettyServer) {
                         status.mistralVibe = true;
                         status.configPaths.push(configPath);
