@@ -35,17 +35,22 @@ export function activate(context: vscode.ExtensionContext): void {
     mcpServer = new MCPServer(sessionManager, sessionTreeProvider);
     ipcServer = new IPCServer(mcpServer);
 
+    // Initialize status bar
+    statusBar = SecurityStatusBar.getInstance();
+    statusBar.show();
+
     ipcServer.start()
         .then(() => {
-            vscode.window.showInformationMessage('VibeTTY MCP server started on port 47632');
+            const port = ipcServer.getPort();
+            const portMsg = port === 47632
+                ? `port ${port}`
+                : `port ${port} (default port 47632 in use)`;
+            vscode.window.showInformationMessage(`VibeTTY MCP server started on ${portMsg}`);
+            statusBar.setMCPPort(port);
         })
         .catch((err) => {
             vscode.window.showErrorMessage(`Failed to start MCP server: ${err.message}`);
         });
-
-    // Initialize status bar
-    statusBar = SecurityStatusBar.getInstance();
-    statusBar.show();
 
     // Register tree view
     const treeView = vscode.window.createTreeView('vibetty-sessions', {

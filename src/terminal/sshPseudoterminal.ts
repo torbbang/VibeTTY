@@ -2,8 +2,17 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+
+// Use VSCode's bundled node-pty to avoid build/packaging issues
+// VSCode already ships with node-pty for its integrated terminal
+let nodePty: any;
+try {
+    nodePty = require(path.join(vscode.env.appRoot, 'node_modules.asar', 'node-pty'));
+} catch (e) {
+    // Fallback for unpacked installations
+    nodePty = require(path.join(vscode.env.appRoot, 'node_modules', 'node-pty'));
+}
 import { PasswordFilter } from '../security/passwordFilter';
 import { VisualHighlighter } from './visualHighlighter';
 import { SessionLogger } from '../sessions/sessionLogger';
@@ -30,7 +39,7 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
 
     private writeEmitter = new vscode.EventEmitter<string>();
     private closeEmitter = new vscode.EventEmitter<number | void>();
-    private process?: ChildProcess;
+    private process?: any; // node-pty IPty interface
     private outputBuffer = '';
     private lastReadPosition = 0;
     private dimensions?: vscode.TerminalDimensions;
@@ -38,6 +47,28 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
     private isBlinking = false;
     private promptDetectionTimer?: NodeJS.Timeout;
     private pendingLine = '';
+
+    // Auth prompt patterns for comprehensive authentication detection
+    private authPromptPatterns = {
+        password: [
+            'password:',
+            'password for',
+            'enter password',
+            '\'s password:',  // user@host's password:
+        ],
+        passphrase: [
+            'passphrase',
+            'enter passphrase for',
+            'bad passphrase',
+        ],
+        keyboardInteractive: [
+            'verification code',
+            'authentication code',
+            'token',
+            'otp',
+            'challenge',
+        ],
+    };
 
     // Device detection
     public vendor: Vendor;
@@ -99,20 +130,25 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
         // Load keyword highlighting
         this.loadKeywordHighlighting();
 
-        // Spawn SSH process with PTY support via -tt flag
-        // Double -t forces pseudo-terminal allocation even when stdin isn't a terminal
-        // This ensures proper formatting, colors, and interactive features
+        // Spawn SSH process with real PTY using node-pty
+        // This gives SSH a real pseudo-terminal, preventing GUI password dialogs
         const sshArgs = ['-tt', ...this.options.args];
 
-        // Spawn SSH process
-        this.process = spawn(this.options.command, sshArgs, {
-            stdio: ['pipe', 'pipe', 'pipe'],
+        // Spawn SSH process with real PTY
+        this.process = nodePty.spawn(this.options.command, sshArgs, {
+            name: 'xterm-256color',
+            cols: initialDimensions?.columns || 80,
+            rows: initialDimensions?.rows || 30,
+            cwd: process.env.HOME || process.cwd(),
             env: {
                 ...process.env,
+                // Disable GUI password prompts - force PTY prompts
+                DISPLAY: undefined,
+                SSH_ASKPASS: undefined,
+                SSH_ASKPASS_REQUIRE: 'never',
+                // Terminal configuration (set via PTY options above)
                 TERM: 'xterm-256color',
                 COLORTERM: 'truecolor',
-                COLUMNS: String(initialDimensions?.columns || 80),
-                LINES: String(initialDimensions?.rows || 30),
                 // Disable pagers to prevent interactive prompts
                 PAGER: 'cat',
                 SYSTEMD_PAGER: '',
@@ -125,9 +161,10 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
         // Mark as connected when process starts
         this._isConnected = true;
 
-        // Handle stdout
-        this.process.stdout?.on('data', (data: Buffer) => {
-            let text = data.toString();
+        // Handle data from PTY (combines stdout and stderr)
+        this.process.onData((data: string) => {
+            // node-pty provides data as string, not Buffer
+            let text = data;
 
             // Apply keyword highlighting to terminal display
             const highlightedText = this.keywordHighlighter.highlight(text);
@@ -152,35 +189,10 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
             this.detectPaginationPrompt(text);
         });
 
-        // Handle stderr
-        this.process.stderr?.on('data', (data: Buffer) => {
-            const text = data.toString();
-
-            // Filter out the "Pseudo-terminal will not be allocated" warning
-            // This happens when SSH detects we're not using a real PTY
-            if (text.includes('Pseudo-terminal will not be allocated')) {
-                return;
-            }
-
-            this.outputBuffer += text;
-            this.trimOutputBuffer();
-            this.writeEmitter.fire(text);
-            this.emit('data', text);
-
-            // Log stderr output (raw, no redaction)
-            if (this.logger) {
-                this.logger.write(text);
-            }
-
-            // Detect password prompts in stderr too
-            this.detectPasswordPrompt(text);
-
-            // Detect sub-session status in stderr as well
-            this._detectSubSessionStatus(text);
-        });
-
         // Handle process exit
-        this.process.on('exit', (code) => {
+        this.process.onExit((e: { exitCode: number; signal?: number }) => {
+            const code = e.exitCode;
+
             // Mark as disconnected
             this._isConnected = false;
 
@@ -197,12 +209,6 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
 
             // Don't close the terminal - let user see the output and reconnect if needed
             // this.closeEmitter.fire(code || undefined);
-        });
-
-        // Handle errors
-        this.process.on('error', (error) => {
-            this.writeEmitter.fire(`\r\nProcess error: ${error.message}\r\n`);
-            this.emit('error', error);
         });
     }
 
@@ -233,8 +239,8 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
             this.stopBlinking();
         }
 
-        if (this.process && this.process.stdin) {
-            this.process.stdin.write(data);
+        if (this.process) {
+            this.process.write(data);
         }
 
         // Update visible command line
@@ -431,11 +437,18 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
     setDimensions(dimensions: vscode.TerminalDimensions): void {
         // Store dimensions for reference
         this.dimensions = dimensions;
-        // Note: We can't dynamically resize SSH process after spawn
-        void this.dimensions; // Suppress unused warning
+
+        // Now we can dynamically resize the PTY!
+        if (this.process && this.dimensions) {
+            this.process.resize(this.dimensions.columns, this.dimensions.rows);
+        }
     }
 
-    private detectPasswordPrompt(data: string): void {
+    /**
+     * Enhanced authentication prompt detection supporting multiple auth methods
+     * Replaces the old detectPasswordPrompt with comprehensive coverage
+     */
+    private async detectAuthPrompt(data: string): Promise<void> {
         // Clear any existing detection timer
         if (this.promptDetectionTimer) {
             clearTimeout(this.promptDetectionTimer);
@@ -444,46 +457,121 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
         // Accumulate data into pending line
         this.pendingLine += data;
 
-        // Check for explicit password patterns (fast path)
+        // Check for auth prompt patterns
         const lowerPending = this.pendingLine.toLowerCase();
-        const passwordPatterns = this.vendor.passwordPromptPatterns;
+        let promptType: 'password' | 'passphrase' | 'keyboardInteractive' | null = null;
 
-        let isPasswordPrompt = false;
-        for (const pattern of passwordPatterns) {
+        // Check password patterns first
+        for (const pattern of this.authPromptPatterns.password) {
             if (lowerPending.includes(pattern)) {
-                isPasswordPrompt = true;
+                promptType = 'password';
                 break;
             }
         }
 
-        // Only use intelligent detection if we found a password pattern
-        // Don't blink on every prompt ending with : > or $
+        // Check passphrase patterns if not password
+        if (!promptType) {
+            for (const pattern of this.authPromptPatterns.passphrase) {
+                if (lowerPending.includes(pattern)) {
+                    promptType = 'passphrase';
+                    break;
+                }
+            }
+        }
+
+        // Check keyboard-interactive patterns
+        if (!promptType) {
+            for (const pattern of this.authPromptPatterns.keyboardInteractive) {
+                if (lowerPending.includes(pattern)) {
+                    promptType = 'keyboardInteractive';
+                    break;
+                }
+            }
+        }
+
         const hasNoNewline = !this.pendingLine.includes('\n');
 
-        if (isPasswordPrompt && hasNoNewline) {
+        if (promptType && hasNoNewline) {
             // Set a timer to detect if this is truly a prompt waiting for input
-            this.promptDetectionTimer = setTimeout(() => {
-                // If we still have pending line content and no newline,
-                // it's likely a prompt waiting for input
+            this.promptDetectionTimer = setTimeout(async () => {
                 if (this.pendingLine && !this.pendingLine.includes('\n')) {
-                    // Get the last line (might contain control chars, so clean it)
                     const lastLine = this.pendingLine.split('\r').pop() || '';
 
-                    // Only trigger for lines that look like prompts
                     if (lastLine.trim().length > 0) {
-                        this.passwordPromptLine = lastLine.trim();
-                        this.startBlinking();
-                        this.emit('password-prompt', lastLine);
+                        await this.handleAuthPrompt(lastLine.trim(), promptType!);
                     }
-
                     this.pendingLine = '';
                 }
-            }, 300);
+            }, 300);  // 300ms delay to avoid false positives
         }
 
         // Clear pending line on newline
         if (this.pendingLine.includes('\n')) {
             this.pendingLine = '';
+        }
+    }
+
+    /**
+     * Legacy password detection method - kept for compatibility
+     * Now internally calls detectAuthPrompt for unified handling
+     */
+    private async detectPasswordPrompt(data: string): Promise<void> {
+        await this.detectAuthPrompt(data);
+    }
+
+    /**
+     * Handle authentication prompts by showing VSCode input box
+     * Supports password, passphrase, and keyboard-interactive auth
+     */
+    private async handleAuthPrompt(prompt: string, type: 'password' | 'passphrase' | 'keyboardInteractive'): Promise<void> {
+        // Check if reactive prompts are enabled
+        const config = vscode.workspace.getConfiguration('vibetty');
+        const promptEnabled = config.get<boolean>('ssh.enableReactiveAuth', true);
+
+        if (!promptEnabled) {
+            // Fall back to manual input (existing blinking behavior)
+            this.passwordPromptLine = prompt;
+            this.startBlinking();
+            this.emit('password-prompt', prompt);
+            return;
+        }
+
+        // Determine prompt message based on type
+        let promptMessage: string;
+        let placeholder: string;
+
+        switch (type) {
+            case 'password':
+                promptMessage = prompt || `Enter password for ${this.options.name}`;
+                placeholder = 'Password';
+                break;
+            case 'passphrase':
+                promptMessage = prompt || 'Enter passphrase for SSH key';
+                placeholder = 'Passphrase';
+                break;
+            case 'keyboardInteractive':
+                promptMessage = prompt;  // Use exact prompt from SSH
+                placeholder = 'Enter response';
+                break;
+        }
+
+        // Show VSCode input box
+        const response = await vscode.window.showInputBox({
+            password: true,
+            prompt: promptMessage,
+            placeHolder: placeholder,
+            ignoreFocusOut: true,
+        });
+
+        if (response === undefined) {
+            // User cancelled - close connection
+            this.close();
+            return;
+        }
+
+        // Write response to PTY
+        if (this.process) {
+            this.process.write(response + '\n');
         }
     }
 
@@ -576,7 +664,7 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
             this.autoPaginateEnabled = true;
         }
 
-        if (this.process && this.process.stdin) {
+        if (this.process) {
             // Restore placeholders to actual secrets before sending to device
             const restoredText = this.passwordFilter.restoreSecrets(text);
 
@@ -600,8 +688,8 @@ export class SSHPseudoterminal extends EventEmitter implements vscode.Pseudoterm
     }
 
     private _writeToProcess(text: string): void {
-        if (this.process && this.process.stdin) {
-            this.process.stdin.write(text);
+        if (this.process) {
+            this.process.write(text);
         }
     }
 

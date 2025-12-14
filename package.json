@@ -262,6 +262,11 @@
           "default": 10,
           "description": "Sets the ConnectTimeout option for SSH connections. SSH will fail quickly if the host is unreachable. Value is in seconds. Set to 0 to disable (use system default)."
         },
+        "vibetty.ssh.enableReactiveAuth": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show VSCode input boxes for SSH authentication prompts (passwords, passphrases, 2FA). With node-pty, manual terminal input works great, so this is disabled by default."
+        },
         "vibetty.highlighting.enabled": {
           "type": "boolean",
           "default": true,

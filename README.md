@@ -93,6 +93,43 @@ For the best user experience I recommend auto-approving the following tools:
 - Session logging with daily rotation
 - Connection notes for device documentation
 
+## 🔐 SSH Authentication
+
+VibeTTY provides seamless authentication for all SSH methods using VSCode-native input boxes:
+
+**Supported Authentication Methods:**
+- ✅ **Password authentication** - Detects password prompts, shows input box
+- ✅ **SSH key passphrases** - Detects passphrase prompts, shows input box
+- ✅ **Keyboard-interactive** - Handles multiple challenge-response prompts
+- ✅ **2FA/MFA** - Sequential prompts (password then OTP/token)
+- ✅ **Public keys (no passphrase)** - Works automatically, no prompts
+- ✅ **In-session prompts** (sudo, enable) - Consistent input box experience
+
+**How it works:**
+1. SSH connection starts normally
+2. VibeTTY monitors output for authentication prompts
+3. When prompt detected, shows VSCode input box with contextual message
+4. User enters password/passphrase/code
+5. Response sent to SSH stdin
+6. Process repeats for multiple prompts (keyboard-interactive)
+
+**Configuration:**
+```json
+{
+    // Disable VSCode input boxes (use manual terminal input)
+    "vibetty.ssh.enableReactiveAuth": false
+}
+```
+
+**Benefits:**
+- **Universal**: Works with ALL SSH authentication methods
+- **VSCode Remote compatible**: Input boxes work in remote environments
+- **Secure**: Credentials never logged or exposed in command line
+- **Context-aware**: Different prompts for password vs passphrase vs 2FA
+- **No pre-configuration**: Works automatically, no per-host setup needed
+
+**Note**: System OS dialogs will never appear - you'll always get VSCode input boxes.
+
 ## 🛠️ MCP Tools
 
 | Tool | Description | Approval |

@@ -12,12 +12,14 @@ import * as path from 'path';
 import * as os from 'os';
 import { MCPServer } from './server';
 
-const IPC_PORT = 47632;
+const DEFAULT_IPC_PORT = 47632;
 const MAX_CLIENTS = 5;
 const MAX_REQUEST_SIZE = 1024 * 1024; // 1MB
 const RATE_LIMIT_WINDOW = 1000; // 1 second
 const RATE_LIMIT_MAX_REQUESTS = 20; // Reduced from 100 for security
-const AUTH_TOKEN_FILE = path.join(os.homedir(), '.vibetty', 'mcp_token');
+const VIBETTY_DIR = path.join(os.homedir(), '.vibetty');
+const AUTH_TOKEN_FILE = path.join(VIBETTY_DIR, 'mcp_token');
+const PORT_FILE = path.join(VIBETTY_DIR, 'mcp_port');
 
 interface ClientState {
     socket: net.Socket;
@@ -31,6 +33,7 @@ export class IPCServer {
     private mcpServer: MCPServer;
     private clients: Map<net.Socket, ClientState> = new Map();
     private authToken: string;
+    private actualPort: number = 0;
 
     constructor(mcpServer: MCPServer) {
         this.mcpServer = mcpServer;
@@ -43,12 +46,10 @@ export class IPCServer {
      * Token is stored in ~/.vibetty/mcp_token with 0600 permissions
      */
     private getOrCreateAuthToken(): string {
-        const tokenDir = path.dirname(AUTH_TOKEN_FILE);
-
         try {
             // Ensure directory exists
-            if (!fs.existsSync(tokenDir)) {
-                fs.mkdirSync(tokenDir, { recursive: true, mode: 0o700 });
+            if (!fs.existsSync(VIBETTY_DIR)) {
+                fs.mkdirSync(VIBETTY_DIR, { recursive: true, mode: 0o700 });
             }
 
             // Check if token file exists
@@ -83,20 +84,70 @@ export class IPCServer {
         return AUTH_TOKEN_FILE;
     }
 
+    /**
+     * Get the actual port the server is listening on
+     */
+    getPort(): number {
+        return this.actualPort;
+    }
+
     start(): Promise<void> {
         return new Promise((resolve, reject) => {
-            this.server.on('error', (err) => {
-                if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-                    // Port in use, try to close existing and retry
-                    reject(new Error(`Port ${IPC_PORT} already in use`));
-                } else {
-                    reject(err);
-                }
-            });
+            // Try default port first
+            this.tryListen(DEFAULT_IPC_PORT)
+                .then(() => {
+                    this.actualPort = DEFAULT_IPC_PORT;
+                    this.writePortFile();
+                    resolve();
+                })
+                .catch(() => {
+                    // Default port in use, let OS assign any available port
+                    this.tryListen(0)
+                        .then((port) => {
+                            this.actualPort = port;
+                            this.writePortFile();
+                            resolve();
+                        })
+                        .catch(reject);
+                });
+        });
+    }
 
-            this.server.listen(IPC_PORT, '127.0.0.1', () => {
-                resolve();
-            });
+    /**
+     * Write the actual port to a file for CLI discovery
+     */
+    private writePortFile(): void {
+        try {
+            fs.writeFileSync(PORT_FILE, this.actualPort.toString(), { mode: 0o600 });
+        } catch {
+            // Non-fatal error, continue anyway
+        }
+    }
+
+    /**
+     * Try to listen on a specific port
+     * @param port Port number (0 = let OS assign)
+     * @returns Promise that resolves with the actual port
+     */
+    private tryListen(port: number): Promise<number> {
+        return new Promise((resolve, reject) => {
+            const errorHandler = (err: Error) => {
+                this.server.removeListener('error', errorHandler);
+                this.server.removeListener('listening', listeningHandler);
+                reject(err);
+            };
+
+            const listeningHandler = () => {
+                this.server.removeListener('error', errorHandler);
+                this.server.removeListener('listening', listeningHandler);
+                const address = this.server.address();
+                const actualPort = typeof address === 'object' && address !== null ? address.port : port;
+                resolve(actualPort);
+            };
+
+            this.server.once('error', errorHandler);
+            this.server.once('listening', listeningHandler);
+            this.server.listen(port, '127.0.0.1');
         });
     }
 
@@ -106,6 +157,15 @@ export class IPCServer {
         }
         this.clients.clear();
         this.server.close();
+
+        // Clean up port file
+        try {
+            if (fs.existsSync(PORT_FILE)) {
+                fs.unlinkSync(PORT_FILE);
+            }
+        } catch {
+            // Non-fatal error
+        }
     }
 
     private handleConnection(socket: net.Socket): void {

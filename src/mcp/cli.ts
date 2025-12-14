@@ -9,10 +9,11 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as os from 'os';
 
-const IPC_PORT = 47632; // VibeTTY IPC port
+const DEFAULT_IPC_PORT = 47632; // VibeTTY IPC port (fallback if port file doesn't exist)
 const VIBETTY_DIR = path.join(os.homedir(), '.vibetty');
 const LOG_FILE = path.join(VIBETTY_DIR, 'logs', 'mcp-debug.log');
 const AUTH_TOKEN_FILE = path.join(VIBETTY_DIR, 'mcp_token');
+const PORT_FILE = path.join(VIBETTY_DIR, 'mcp_port');
 
 interface JSONRPCRequest {
     jsonrpc: string;
@@ -52,9 +53,25 @@ class MCPBridge {
     private buffer = '';
     private authToken: string | null = null;
     private authenticated = false;
+    private ipcPort: number = DEFAULT_IPC_PORT;
 
     async start(): Promise<void> {
         log('MCP Bridge starting...');
+
+        // Load IPC port
+        try {
+            const portStr = fs.readFileSync(PORT_FILE, 'utf8').trim();
+            this.ipcPort = parseInt(portStr, 10);
+            if (isNaN(this.ipcPort)) {
+                log(`Invalid port in ${PORT_FILE}, using default ${DEFAULT_IPC_PORT}`);
+                this.ipcPort = DEFAULT_IPC_PORT;
+            } else {
+                log(`Loaded IPC port ${this.ipcPort} from ${PORT_FILE}`);
+            }
+        } catch (err) {
+            log(`Failed to load port file: ${err}, using default ${DEFAULT_IPC_PORT}`);
+            this.ipcPort = DEFAULT_IPC_PORT;
+        }
 
         // Load auth token
         try {
@@ -67,7 +84,7 @@ class MCPBridge {
 
         // Try to connect to VSCode extension
         try {
-            log(`Attempting to connect to IPC port ${IPC_PORT}...`);
+            log(`Attempting to connect to IPC port ${this.ipcPort}...`);
             await this.connectToExtension();
             log('Successfully connected to VSCode extension');
 
@@ -104,9 +121,9 @@ class MCPBridge {
 
     private connectToExtension(): Promise<void> {
         return new Promise((resolve, reject) => {
-            log(`Creating connection to ${IPC_PORT}...`);
+            log(`Creating connection to ${this.ipcPort}...`);
 
-            this.ipcClient = net.createConnection(IPC_PORT, '127.0.0.1', () => {
+            this.ipcClient = net.createConnection(this.ipcPort, '127.0.0.1', () => {
                 log('Connection established');
                 resolve();
             });

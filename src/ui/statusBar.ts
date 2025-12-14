@@ -13,6 +13,7 @@ export class SecurityStatusBar {
     private strictModeItem: vscode.StatusBarItem;
     private secretCountItem: vscode.StatusBarItem;
     private vendorWarningItem: vscode.StatusBarItem;
+    private mcpPortItem: vscode.StatusBarItem;
     private updateInterval?: NodeJS.Timeout;
 
     private constructor() {
@@ -42,6 +43,13 @@ export class SecurityStatusBar {
         this.vendorWarningItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         this.vendorWarningItem.text = '$(warning) No Vendor';
 
+        // MCP Server port (right side, informational)
+        this.mcpPortItem = vscode.window.createStatusBarItem(
+            vscode.StatusBarAlignment.Right,
+            50
+        );
+        this.mcpPortItem.tooltip = 'VibeTTY MCP Server Port';
+
         this.updateStatusBar();
 
         // Update every 5 seconds
@@ -63,6 +71,7 @@ export class SecurityStatusBar {
     show(): void {
         this.strictModeItem.show();
         this.secretCountItem.show();
+        this.mcpPortItem.show();
         // vendorWarningItem is shown/hidden based on active terminal
     }
 
@@ -73,6 +82,19 @@ export class SecurityStatusBar {
         this.strictModeItem.hide();
         this.secretCountItem.hide();
         this.vendorWarningItem.hide();
+        this.mcpPortItem.hide();
+    }
+
+    /**
+     * Set the MCP server port (call after server starts)
+     */
+    setMCPPort(port: number): void {
+        if (port === 47632) {
+            this.mcpPortItem.text = `$(plug) MCP :${port}`;
+        } else {
+            this.mcpPortItem.text = `$(plug) MCP :${port}`;
+            this.mcpPortItem.tooltip = `VibeTTY MCP Server Port (default 47632 in use)`;
+        }
     }
 
     /**
@@ -143,5 +165,6 @@ export class SecurityStatusBar {
         this.strictModeItem.dispose();
         this.secretCountItem.dispose();
         this.vendorWarningItem.dispose();
+        this.mcpPortItem.dispose();
     }
 }

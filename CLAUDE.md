@@ -179,12 +179,28 @@ We use VSCode's Pseudoterminal API with Node.js `child_process` to:
 - **Secret Filtering**: Passwords/keys filtered before LLM (always on)
 - **Secret Registry**: Track what was filtered
 
-### Password Detection
-- **Pattern Matching**: Detects various password prompt formats
-- **Visual Feedback**: Green blinking line when password needed
-- **Auto-focus**: Brings terminal to front when password required
-- **Smart Detection**: 300ms delay to avoid false positives
-- **Vendor-Specific**: Device-type-aware prompt patterns
+### Reactive SSH Authentication
+- **Prompt detection**: Monitors SSH stdout/stderr for auth prompts in real-time
+- **Pattern matching**: Classifies prompts as password, passphrase, or keyboard-interactive
+- **VSCode input boxes**: Shows contextual prompts based on auth type
+- **Stdin injection**: User responses written directly to SSH stdin
+- **Multiple prompts**: Handles sequential prompts (2FA, keyboard-interactive)
+- **Security**: Credentials never logged, sent only to SSH stdin, cleared from memory
+- **Configuration**: Single toggle (`enableReactiveAuth`) to disable all reactive prompts
+
+#### Prompt Patterns
+Located in `sshPseudoterminal.ts`:
+- **Password**: `'password:'`, `'password for'`, `'\'s password:'`, `'enter password'`
+- **Passphrase**: `'passphrase'`, `'enter passphrase for'`, `'bad passphrase'`
+- **Keyboard-interactive**: `'verification code'`, `'token'`, `'otp'`, `'challenge'`, `'authentication code'`
+
+Patterns are case-insensitive and require 300ms stability (no newlines) to trigger.
+
+#### Unified Authentication Experience
+- **Initial connection auth**: Reactive input boxes
+- **In-session prompts** (sudo, enable, etc.): Same reactive input boxes
+- **Host key verification**: Manual terminal input (yes/no)
+- **Fallback**: Disable reactive auth to use manual terminal input everywhere
 
 ### Auto-Pagination
 - **MCP-Only Feature**: Auto-pagination is ONLY enabled for commands sent via MCP `send_to_terminal` tool
