@@ -1,17 +1,6 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import * as toml from 'toml';
-
-interface MCPServer {
-    name?: string;
-    [key: string]: unknown;
-}
-
-interface MistralVibeConfig {
-    mcp_servers?: MCPServer[];
-    [key: string]: unknown;
-}
 
 interface MCPConfig {
     mcpServers?: Record<string, unknown>;
@@ -113,16 +102,14 @@ export function checkMCPConfigs(): ConfigStatus {
         if (fs.existsSync(configPath)) {
             try {
                 const content = fs.readFileSync(configPath, 'utf-8');
-                const config = toml.parse(content) as MistralVibeConfig;
-                if (config.mcp_servers && Array.isArray(config.mcp_servers)) {
-                    const vibettyServer = config.mcp_servers.find((server) => server.name === 'vibetty');
-                    if (vibettyServer) {
-                        status.mistralVibe = true;
-                        status.configPaths.push(configPath);
-                    }
+                // Simple string-based check for vibetty configuration
+                // Looks for TOML table with name = "vibetty"
+                if (content.includes('name = "vibetty"')) {
+                    status.mistralVibe = true;
+                    status.configPaths.push(configPath);
                 }
             } catch {
-                // Config exists but couldn't be parsed
+                // Config exists but couldn't be read
             }
         }
     }
