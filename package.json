@@ -2,7 +2,7 @@
   "name": "vibetty",
   "displayName": "VibeTTY",
   "description": "Bring VibeOps workflows to network and systems administration - AI-assisted SSH/Telnet/Serial management",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "torbjorn-dev",
   "license": "MIT",
   "icon": "resources/icon.png",
