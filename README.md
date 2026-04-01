@@ -1,3 +1,9 @@
+> [!IMPORTANT]
+> ## 🚚 This project has moved to [git.torbjorn.dev](https://git.torbjorn.dev/torbbang/VibeTTY)
+> This GitHub repository is archived and no longer maintained.
+
+---
+
 # VibeTTY
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/torbbang/vibetty)
